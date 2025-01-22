@@ -270,6 +270,36 @@ describe('Flags', () => {
 		});
 	});
 
+	describe('setDefaultFilters', () => {
+		it('should set default values for filters.page and filters.perPage if not provided', () => {
+			const filters = {};
+			setDefaultFilters(filters);
+			assert.strictEqual(filters.page, 1);
+			assert.strictEqual(filters.perPage, 20);
+		});
+
+		it('should retain provided values for filters.page and filters.perPage', () => {
+			const filters = { page: 3, perPage: 50 };
+			setDefaultFilters(filters);
+			assert.strictEqual(filters.page, 3);
+			assert.strictEqual(filters.perPage, 50);
+		});
+
+		it('should parse and set valid positive integers for filters.page and filters.perPage', () => {
+			const filters = { page: '5', perPage: '15' };
+			setDefaultFilters(filters);
+			assert.strictEqual(filters.page, 5);
+			assert.strictEqual(filters.perPage, 15);
+		});
+
+		it('should default invalid values to 1 for page and 20 for perPage', () => {
+			const filters = { page: -3, perPage: 'invalid' };
+			setDefaultFilters(filters);
+			assert.strictEqual(filters.page, 1);
+			assert.strictEqual(filters.perPage, 20);
+		});
+	});
+
 	describe('.list()', () => {
 		it('should show a list of flags (with one item)', (done) => {
 			Flags.list({
