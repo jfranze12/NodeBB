@@ -133,12 +133,15 @@ Flags.getCount = async function ({ uid, filters, query }) {
 	const flagIds = await Flags.getFlagIdsWithFilters({ filters, uid, query });
 	return flagIds.length;
 };
-Flags.getFlagIdsWithFilters = async function ({ filters, uid, query}){
+Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 	setDefaultFilters(filters);
-	const {sets, orSets} = processFilters(filters, uid);
-	
 
-}
+	const { sets, orSets } = processFilters(filters, uid);
+
+	let flagIds = await getFlagIds(sets, orSets);
+
+	return flagIds;
+};
 
 function setDefaultFilters(filters) {
 	filters.page = filters.hasOwnProperty('page') ? Math.abs(parseInt(filters.page, 10) || 1) : 1;
@@ -158,6 +161,31 @@ function processFilters(filters, uid) {
 	}
 	sets = (sets.length || orSets.length) ? sets : ['flags:datetime']; // No filter default
 	return { sets, orSets };
+}
+
+async function getFlagIds(sets, orSets) {
+	let flagIds = [];
+	if (sets.length === 1) {
+		flagIds = await db.getSortedSetRevRange(sets[0], 0, -1);
+	} else if (sets.length > 1) {
+		flagIds = await db.getSortedSetRevIntersect({ sets, start: 0, stop: -1, aggregate: 'MAX' });
+	}
+
+	if (orSets.length) {
+		let _flagIds = await Promise.all(
+			orSets.map(async orSet => await db.getSortedSetRevUnion({
+				sets: orSet,
+				start: 0,
+				stop: -1,
+				aggregate: 'MAX',
+			}))
+		);
+		_flagIds = _.intersection(..._flagIds);
+
+		flagIds = sets.length ? _.intersection(flagIds, _flagIds) : _.union(flagIds, _flagIds);
+	}
+
+	return flagIds;
 }
 /*
 Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
