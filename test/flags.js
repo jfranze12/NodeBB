@@ -338,6 +338,56 @@ describe('Flags', () => {
 		});
 	});
 
+	describe('getFlagIds', () => {
+		it('should retrieve flag IDs from a single set', async () => {
+			const sets = ['flags:state:open'];
+			const orSets = [];
+			const fakeDb = sinon.stub(db, 'getSortedSetRevRange').resolves([1, 2, 3]);
+	
+			const flagIds = await getFlagIds(sets, orSets);
+	
+			assert.strictEqual(flagIds.length, 3);
+			assert.deepStrictEqual(flagIds, [1, 2, 3]);
+			fakeDb.restore();
+		});
+	
+		it('should retrieve flag IDs from multiple intersecting sets', async () => {
+			const sets = ['flags:state:open', 'flags:priority:high'];
+			const orSets = [];
+			const fakeDb = sinon.stub(db, 'getSortedSetRevIntersect').resolves([1, 2]);
+	
+			const flagIds = await getFlagIds(sets, orSets);
+	
+			assert.strictEqual(flagIds.length, 2);
+			assert.deepStrictEqual(flagIds, [1, 2]);
+			fakeDb.restore();
+		});
+	
+		it('should handle union of orSets and intersect with sets', async () => {
+			const sets = ['flags:state:open'];
+			const orSets = [['flags:category:1', 'flags:category:2']];
+			const fakeIntersect = sinon.stub(db, 'getSortedSetRevIntersect').resolves([1, 2]);
+			const fakeUnion = sinon.stub(db, 'getSortedSetRevUnion').resolves([2, 3]);
+	
+			const flagIds = await getFlagIds(sets, orSets);
+	
+			assert.deepStrictEqual(flagIds, [2]);
+			fakeIntersect.restore();
+			fakeUnion.restore();
+		});
+	
+		it('should return all unioned flag IDs if no sets exist', async () => {
+			const sets = [];
+			const orSets = [['flags:category:1', 'flags:category:2']];
+			const fakeUnion = sinon.stub(db, 'getSortedSetRevUnion').resolves([3, 4]);
+	
+			const flagIds = await getFlagIds(sets, orSets);
+	
+			assert.deepStrictEqual(flagIds, [3, 4]);
+			fakeUnion.restore();
+		});
+	});
+
 	describe('.list()', () => {
 		it('should show a list of flags (with one item)', (done) => {
 			Flags.list({
