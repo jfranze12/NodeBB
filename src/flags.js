@@ -138,9 +138,16 @@ Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 
 	const { sets, orSets } = processFilters(filters, uid);
 
-	let flagIds = await getFlagIds(sets, orSets);
+	const flagIds = await getFlagIds(sets, orSets);
 
-	return flagIds;
+	const result = await plugins.hooks.fire('filter:flags.getFlagIdsWithFilters', {
+		filters,
+		uid,
+		query,
+		flagIds,
+	});
+
+	return result.flagIds;
 };
 
 function setDefaultFilters(filters) {
