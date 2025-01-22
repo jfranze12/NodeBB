@@ -135,6 +135,8 @@ Flags.getCount = async function ({ uid, filters, query }) {
 };
 Flags.getFlagIdsWithFilters = async function ({ filters, uid, query}){
 	setDefaultFilters(filters);
+	const {sets, orSets} = processFilters(filters, uid);
+	
 
 }
 
@@ -143,7 +145,20 @@ function setDefaultFilters(filters) {
 	filters.perPage = filters.hasOwnProperty('perPage') ? Math.abs(parseInt(filters.perPage, 10) || 20) : 20;
 }
 
+function processFilters(filters, uid) {
+	let sets = [];
+	const orSets = [];
 
+	for (const type of Object.keys(filters)) {
+		if (Flags._filters.hasOwnProperty(type)) {
+			Flags._filters[type](sets, orSets, filters[type], uid);
+		} else {
+			winston.warn(`[flags/list] No flag filter type found: ${type}`);
+		}
+	}
+	sets = (sets.length || orSets.length) ? sets : ['flags:datetime']; // No filter default
+	return { sets, orSets };
+}
 /*
 Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 	let sets = [];
