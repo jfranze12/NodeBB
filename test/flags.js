@@ -20,6 +20,8 @@ const Privileges = require('../src/privileges');
 const plugins = require('../src/plugins');
 const utils = require('../src/utils');
 const api = require('../src/api');
+const { setDefaultFilters, processFilters, getFlagIds } = require('../src/flags'); // Update path as needed
+
 
 describe('Flags', () => {
 	let uid1;
@@ -270,121 +272,107 @@ describe('Flags', () => {
 		});
 	});
 
-	describe('setDefaultFilters', () => {
-		it('should set default values for filters.page and filters.perPage if not provided', () => {
-			const filters = {};
-			setDefaultFilters(filters);
-			assert.strictEqual(filters.page, 1);
-			assert.strictEqual(filters.perPage, 20);
+	describe('Helper Functions for Flags.getFlagIdsWithFilters', () => {
+		describe('setDefaultFilters', () => {
+			it('should set default values for filters.page and filters.perPage if not provided', () => {
+				const filters = {};
+				setDefaultFilters(filters);
+				assert.strictEqual(filters.page, 1);
+				assert.strictEqual(filters.perPage, 20);
+			});
+			it('should retain provided values for filters.page and filters.perPage', () => {
+				const filters = { page: 3, perPage: 50 };
+				setDefaultFilters(filters);
+				assert.strictEqual(filters.page, 3);
+				assert.strictEqual(filters.perPage, 50);
+			});
+			it('should parse and set valid positive integers for filters.page and filters.perPage', () => {
+				const filters = { page: '5', perPage: '15' };
+				setDefaultFilters(filters);
+				assert.strictEqual(filters.page, 5);
+				assert.strictEqual(filters.perPage, 15);
+			});
+			it('should default invalid values to 1 for page and 20 for perPage', () => {
+				const filters = { page: -3, perPage: 'invalid' };
+				setDefaultFilters(filters);
+				assert.strictEqual(filters.page, 1);
+				assert.strictEqual(filters.perPage, 20);
+			});
 		});
-
-		it('should retain provided values for filters.page and filters.perPage', () => {
-			const filters = { page: 3, perPage: 50 };
-			setDefaultFilters(filters);
-			assert.strictEqual(filters.page, 3);
-			assert.strictEqual(filters.perPage, 50);
+		describe('processFilters', () => {
+			it('should populate sets and orSets based on valid filters', () => {
+				const filters = { state: 'open' };
+				const uid = 1;
+				Flags._filters = {
+					state: (sets, orSets, value) => {
+						sets.push(`flags:state:${value}`);
+					},
+				};
+				const { sets, orSets } = processFilters(filters, uid);
+				assert.strictEqual(sets.length, 1);
+				assert.strictEqual(sets[0], 'flags:state:open');
+				assert.strictEqual(orSets.length, 0);
+			});
+			it('should log a warning for unknown filter types', () => {
+				const filters = { unknownFilter: 'value' };
+				const uid = 1;
+				const warnSpy = console.warn; // Save original console.warn
+				const warnings = [];
+				console.warn = (message) => warnings.push(message); // Mock console.warn
+				processFilters(filters, uid);
+				assert.strictEqual(warnings.length, 1);
+				assert(warnings[0].includes('[flags/list] No flag filter type found: unknownFilter'));
+				console.warn = warnSpy; // Restore original console.warn
+			});
+			it('should set default sets if none are populated', () => {
+				const filters = {};
+				const uid = 1;
+				const { sets, orSets } = processFilters(filters, uid);
+				assert.strictEqual(sets.length, 1);
+				assert.strictEqual(sets[0], 'flags:datetime');
+				assert.strictEqual(orSets.length, 0);
+			});
 		});
-
-		it('should parse and set valid positive integers for filters.page and filters.perPage', () => {
-			const filters = { page: '5', perPage: '15' };
-			setDefaultFilters(filters);
-			assert.strictEqual(filters.page, 5);
-			assert.strictEqual(filters.perPage, 15);
-		});
-
-		it('should default invalid values to 1 for page and 20 for perPage', () => {
-			const filters = { page: -3, perPage: 'invalid' };
-			setDefaultFilters(filters);
-			assert.strictEqual(filters.page, 1);
-			assert.strictEqual(filters.perPage, 20);
-		});
-	});
-
-	describe('processFilters', () => {
-		it('should populate sets and orSets based on valid filters', () => {
-			const filters = { state: 'open' };
-			const uid = 1;
-			Flags._filters = {
-				state: (sets, orSets, value) => {
-					sets.push(`flags:state:${value}`);
-				},
-			};
-	
-			const { sets, orSets } = processFilters(filters, uid);
-			assert.strictEqual(sets.length, 1);
-			assert.strictEqual(sets[0], 'flags:state:open');
-			assert.strictEqual(orSets.length, 0);
-		});
-	
-		it('should log a warning for unknown filter types', () => {
-			const filters = { unknownFilter: 'value' };
-			const uid = 1;
-			const spy = sinon.spy(console, 'warn');
-	
-			processFilters(filters, uid);
-	
-			assert(spy.calledWithMatch('[flags/list] No flag filter type found: unknownFilter'));
-			spy.restore();
-		});
-	
-		it('should set default sets if none are populated', () => {
-			const filters = {};
-			const uid = 1;
-	
-			const { sets, orSets } = processFilters(filters, uid);
-			assert.strictEqual(sets.length, 1);
-			assert.strictEqual(sets[0], 'flags:datetime');
-			assert.strictEqual(orSets.length, 0);
-		});
-	});
-
-	describe('getFlagIds', () => {
-		it('should retrieve flag IDs from a single set', async () => {
-			const sets = ['flags:state:open'];
-			const orSets = [];
-			const fakeDb = sinon.stub(db, 'getSortedSetRevRange').resolves([1, 2, 3]);
-	
-			const flagIds = await getFlagIds(sets, orSets);
-	
-			assert.strictEqual(flagIds.length, 3);
-			assert.deepStrictEqual(flagIds, [1, 2, 3]);
-			fakeDb.restore();
-		});
-	
-		it('should retrieve flag IDs from multiple intersecting sets', async () => {
-			const sets = ['flags:state:open', 'flags:priority:high'];
-			const orSets = [];
-			const fakeDb = sinon.stub(db, 'getSortedSetRevIntersect').resolves([1, 2]);
-	
-			const flagIds = await getFlagIds(sets, orSets);
-	
-			assert.strictEqual(flagIds.length, 2);
-			assert.deepStrictEqual(flagIds, [1, 2]);
-			fakeDb.restore();
-		});
-	
-		it('should handle union of orSets and intersect with sets', async () => {
-			const sets = ['flags:state:open'];
-			const orSets = [['flags:category:1', 'flags:category:2']];
-			const fakeIntersect = sinon.stub(db, 'getSortedSetRevIntersect').resolves([1, 2]);
-			const fakeUnion = sinon.stub(db, 'getSortedSetRevUnion').resolves([2, 3]);
-	
-			const flagIds = await getFlagIds(sets, orSets);
-	
-			assert.deepStrictEqual(flagIds, [2]);
-			fakeIntersect.restore();
-			fakeUnion.restore();
-		});
-	
-		it('should return all unioned flag IDs if no sets exist', async () => {
-			const sets = [];
-			const orSets = [['flags:category:1', 'flags:category:2']];
-			const fakeUnion = sinon.stub(db, 'getSortedSetRevUnion').resolves([3, 4]);
-	
-			const flagIds = await getFlagIds(sets, orSets);
-	
-			assert.deepStrictEqual(flagIds, [3, 4]);
-			fakeUnion.restore();
+		describe('getFlagIds', () => {
+			beforeEach(async () => {
+				// Set up test data in the mock database
+				await db.setSortedSetRev('flags:state:open', 1, 'flag1');
+				await db.setSortedSetRev('flags:state:open', 2, 'flag2');
+				await db.setSortedSetRev('flags:priority:high', 1, 'flag2');
+			});
+			afterEach(async () => {
+				// Clean up test data
+				await db.delete('flags:state:open');
+				await db.delete('flags:priority:high');
+			});
+			it('should retrieve flag IDs from a single set', async () => {
+				const sets = ['flags:state:open'];
+				const orSets = [];
+				const flagIds = await getFlagIds(sets, orSets);
+				assert.strictEqual(flagIds.length, 2);
+				assert.deepStrictEqual(flagIds, ['flag1', 'flag2']);
+			});
+			it('should retrieve flag IDs from multiple intersecting sets', async () => {
+				const sets = ['flags:state:open', 'flags:priority:high'];
+				const orSets = [];
+				const flagIds = await getFlagIds(sets, orSets);
+				assert.strictEqual(flagIds.length, 1);
+				assert.deepStrictEqual(flagIds, ['flag2']);
+			});
+			it('should handle union of orSets and intersect with sets', async () => {
+				const sets = ['flags:state:open'];
+				const orSets = [['flags:priority:high', 'flags:priority:medium']];
+				await db.setSortedSetRev('flags:priority:medium', 1, 'flag3');
+				const flagIds = await getFlagIds(sets, orSets);
+				assert.deepStrictEqual(flagIds, ['flag2']); // Intersection of 'flags:state:open' and union of orSets
+				await db.delete('flags:priority:medium');
+			});
+			it('should return all unioned flag IDs if no sets exist', async () => {
+				const sets = [];
+				const orSets = [['flags:state:open', 'flags:priority:high']];
+				const flagIds = await getFlagIds(sets, orSets);
+				assert.deepStrictEqual(flagIds, ['flag1', 'flag2']);
+			});
 		});
 	});
 
