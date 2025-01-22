@@ -318,7 +318,7 @@ describe('Flags', () => {
 				const uid = 1;
 				const warnSpy = console.warn; // Save original console.warn
 				const warnings = [];
-				console.warn = (message) => warnings.push(message); // Mock console.warn
+				console.warn = message => warnings.push(message); // Mock console.warn
 				processFilters(filters, uid);
 				assert.strictEqual(warnings.length, 1);
 				assert(warnings[0].includes('[flags/list] No flag filter type found: unknownFilter'));
