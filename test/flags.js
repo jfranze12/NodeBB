@@ -300,6 +300,44 @@ describe('Flags', () => {
 		});
 	});
 
+	describe('processFilters', () => {
+		it('should populate sets and orSets based on valid filters', () => {
+			const filters = { state: 'open' };
+			const uid = 1;
+			Flags._filters = {
+				state: (sets, orSets, value) => {
+					sets.push(`flags:state:${value}`);
+				},
+			};
+	
+			const { sets, orSets } = processFilters(filters, uid);
+			assert.strictEqual(sets.length, 1);
+			assert.strictEqual(sets[0], 'flags:state:open');
+			assert.strictEqual(orSets.length, 0);
+		});
+	
+		it('should log a warning for unknown filter types', () => {
+			const filters = { unknownFilter: 'value' };
+			const uid = 1;
+			const spy = sinon.spy(console, 'warn');
+	
+			processFilters(filters, uid);
+	
+			assert(spy.calledWithMatch('[flags/list] No flag filter type found: unknownFilter'));
+			spy.restore();
+		});
+	
+		it('should set default sets if none are populated', () => {
+			const filters = {};
+			const uid = 1;
+	
+			const { sets, orSets } = processFilters(filters, uid);
+			assert.strictEqual(sets.length, 1);
+			assert.strictEqual(sets[0], 'flags:datetime');
+			assert.strictEqual(orSets.length, 0);
+		});
+	});
+
 	describe('.list()', () => {
 		it('should show a list of flags (with one item)', (done) => {
 			Flags.list({
