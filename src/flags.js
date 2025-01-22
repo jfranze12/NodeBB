@@ -133,7 +133,18 @@ Flags.getCount = async function ({ uid, filters, query }) {
 	const flagIds = await Flags.getFlagIdsWithFilters({ filters, uid, query });
 	return flagIds.length;
 };
+Flags.getFlagIdsWithFilters = async function ({ filters, uid, query}){
+	setDefaultFilters(filters);
 
+}
+
+function setDefaultFilters(filters) {
+	filters.page = filters.hasOwnProperty('page') ? Math.abs(parseInt(filters.page, 10) || 1) : 1;
+	filters.perPage = filters.hasOwnProperty('perPage') ? Math.abs(parseInt(filters.perPage, 10) || 20) : 20;
+}
+
+
+/*
 Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 	let sets = [];
 	const orSets = [];
@@ -182,7 +193,7 @@ Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 	});
 	return result.flagIds;
 };
-
+*/
 Flags.list = async function (data) {
 	const filters = data.filters || {};
 	let flagIds = await Flags.getFlagIdsWithFilters({
