@@ -151,13 +151,11 @@ Flags.getFlagIdsWithFilters = async function ({ filters, uid, query }) {
 };
 
 function setDefaultFilters(filters) {
-	console.log('Jacob Franze');
 	filters.page = filters.hasOwnProperty('page') ? Math.abs(parseInt(filters.page, 10) || 1) : 1;
 	filters.perPage = filters.hasOwnProperty('perPage') ? Math.abs(parseInt(filters.perPage, 10) || 20) : 20;
 }
 
 function processFilters(filters, uid) {
-	console.log('Jacob Franze');
 	let sets = [];
 	const orSets = [];
 
@@ -173,7 +171,6 @@ function processFilters(filters, uid) {
 }
 
 async function getFlagIds(sets, orSets) {
-	console.log('Jacob Franze');
 	let flagIds = [];
 	if (sets.length === 1) {
 		flagIds = await db.getSortedSetRevRange(sets[0], 0, -1);
